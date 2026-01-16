@@ -14,19 +14,33 @@ enum ConnectionState {
   Open = 'open',
 }
 
+const instances = new Map<string, SharedPersistentConnection>()
+
 export class SharedPersistentConnection {
   private isLeader: boolean = false
   private releaseLock: (() => void) | null = null
   private channel: BroadcastChannel
   private state: ConnectionState
+  private abortController: AbortController | null = null
 
   constructor(
     public readonly url: string,
-    public readonly config: FetchEventSourceInitConfig
+    public readonly config: FetchEventSourceInitConfig = {}
   ) {
     if (!navigator.locks || !window.BroadcastChannel) {
       throw new Error('SharedPersistentConnection is not supported in this browser')
     }
+
+    if (instances.has(url)) {
+      console.warn(
+        `[SharedPersistentConnection] Duplicate connection for url "${url}".
+          Only one instance per page is allowed.
+          Drop the old instance.
+          `
+      )
+      instances.get(url)!.close()
+    }
+    instances.set(url, this)
 
     this.channel = new BroadcastChannel(getSelfKey(this.url, 'channel'))
 
@@ -38,39 +52,48 @@ export class SharedPersistentConnection {
     this.attemptToBeLeader()
   }
 
+  private abortConnection() {
+    this.abortController && this.abortController.abort()
+    this.abortController = null
+  }
+
   private launch() {
     if (!this.isLeader) {
       return
     }
-    fetchEventSource(this.url, {
-      ...this.config,
-      onmessage: (event) => {
-        this.config.onmessage?.(event)
-        this.channel.postMessage(event)
-      },
-      onopen: (response) => {
-        this.state = ConnectionState.Open
-        if (this.config.onopen) {
-          return this.config.onopen?.(response)
+    this.abortConnection()
+    this.abortController = new AbortController()
+    try {
+      fetchEventSource(this.url, {
+        ...this.config,
+        signal: this.abortController.signal,
+        onmessage: (event) => {
+          this.config.onmessage?.(event)
+          this.channel.postMessage(event)
+        },
+        onopen: (response) => {
+          this.state = ConnectionState.Open
+          if (this.config.onopen) {
+            return this.config.onopen?.(response)
+          }
+          return Promise.resolve()
+        },
+        onclose: () => {
+          this.config.onclose?.()
+          this.close()
+        },
+        onerror: (err) => {
+          this.config.onerror?.(err)
         }
-        return Promise.resolve()
-      },
-      onclose: () => {
-        this.state = ConnectionState.Closed
-        this.config.onclose?.()
-      },
-      onerror: (err) => {
-        this.config.onerror?.(err)
-        if (this.config.retryWhenError) {
-          this.launch()
-        }
-      }
-    })
+      })
+    } catch (e) {
+      this.config.onerror?.(e)
+    }
   }
 
   private attemptToBeLeader() {
     const lockKey = getSelfKey(this.url, 'lock')
-    navigator.locks.request(lockKey, async (lock) => {
+    navigator.locks.request(lockKey, async () => {
       this.isLeader = true
       this.launch()
 
