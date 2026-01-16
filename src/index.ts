@@ -50,15 +50,26 @@ export class SharedPersistentConnection {
 
     this.state = ConnectionState.Connecting
     this.attemptToBeLeader()
+
+    console.log('SharedPersistentConnection constructor');
+    navigator.locks.query()
+      .then((state) => {
+        console.log("所有锁的状态:", state);
+
+        // 查看已持有的锁
+        console.log("持有的锁:", state.held);
+
+        // 查看正在等待的锁请求
+        console.log("等待的锁:", state.pending);
+      });
   }
 
   private abortConnection() {
     this.abortController && this.abortController.abort()
-    this.abortController = null
   }
 
   private launch() {
-    if (!this.isLeader) {
+    if (!this.isLeader || this.state === ConnectionState.Closed) {
       return
     }
     this.abortConnection()
@@ -109,8 +120,9 @@ export class SharedPersistentConnection {
     if (this.state === ConnectionState.Closed) {
       return
     }
-    this.releaseLock?.()
-    this.channel.close()
     this.state = ConnectionState.Closed
+    this.releaseLock?.()
+    this.abortConnection()
+    this.channel.close()
   }
 }
