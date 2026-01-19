@@ -16,7 +16,7 @@ enum ConnectionState {
 
 const instances = new Map<string, SharedPersistentConnection>()
 
-export class SharedPersistentConnection {
+export default class SharedPersistentConnection {
   private isLeader: boolean = false
   private releaseLock: (() => void) | null = null
   private channel: BroadcastChannel

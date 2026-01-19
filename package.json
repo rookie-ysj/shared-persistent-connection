@@ -1,19 +1,39 @@
 {
   "name": "shared-persistent-connection",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "author": "Monkey-D-sj",
+  "license": "ISC",
+  "version": "0.1.0",
+  "main": "./dist/index.js",
+  "description": "multi browser tabs use one sse connection",
+  "repository": "https://github.com/Monkey-D-sj/shared-persistent-connection",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "rimraf dist && rollup -c rollup.config.ts",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
-    "persistent-connection"
+    "share persistent connection",
+    "sse"
   ],
-  "author": "",
-  "license": "ISC",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.cjs.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "packageManager": "pnpm@10.28.0",
   "devDependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "rimraf": "^6.1.2",
+    "rollup": "^4.55.1",
+    "tslib": "^2.8.1",
     "typescript": "^5.9.3"
   },
   "dependencies": {
